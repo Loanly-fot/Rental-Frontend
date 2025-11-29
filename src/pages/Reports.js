@@ -16,6 +16,14 @@ export default function Reports() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
+  const user = JSON.parse(localStorage.getItem("user"));
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/");
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -105,12 +113,20 @@ export default function Reports() {
         <div className="navbar-content">
           <h1>Equipment Rental System</h1>
           <div className="navbar-right">
-            <Link to="/dashboard" className="btn btn-secondary">
-              Dashboard
-            </Link>
+            <span className="user-info">Welcome, {user?.name}</span>
+            <button onClick={handleLogout} className="btn btn-logout">
+              Logout
+            </button>
           </div>
         </div>
       </header>
+
+      <nav className="sidebar">
+        <Link to="/dashboard" className="nav-link">Dashboard</Link>
+        <Link to="/equipment" className="nav-link">Equipment</Link>
+        <Link to="/rentals" className="nav-link">Rentals</Link>
+        <Link to="/reports" className="nav-link active">Reports</Link>
+      </nav>
 
       <main className="reports-main">
         <div className="page-header">

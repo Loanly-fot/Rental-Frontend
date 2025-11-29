@@ -10,16 +10,19 @@ export default function Rentals() {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     equipmentId: "",
-    customerName: "",
-    customerEmail: "",
-    customerPhone: "",
-    startDate: "",
     endDate: "",
-    quantity: 1,
   });
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const navigate = useNavigate();
+  const user = JSON.parse(localStorage.getItem("user"));
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/");
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -34,12 +37,10 @@ export default function Rentals() {
   const fetchRentals = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.get("/rentals", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const response = await axios.get("/api/rentals", {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      setRentals(response.data);
+      setRentals(response.data.rentals || []);
     } catch (err) {
       setError("Failed to fetch rentals");
     } finally {
@@ -51,11 +52,9 @@ export default function Rentals() {
     try {
       const token = localStorage.getItem("token");
       const response = await axios.get("/equipment", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-      setEquipment(response.data.filter((e) => e.available > 0));
+      setEquipment(response.data.equipment || []);
     } catch (err) {
       setError("Failed to fetch equipment");
     }
@@ -63,104 +62,74 @@ export default function Rentals() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: name === "quantity" ? parseInt(value) || 0 : value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const calculateTotal = () => {
-    if (!formData.equipmentId || !formData.startDate || !formData.endDate) {
-      return 0;
-    }
-
-    const equip = equipment.find(
-      (e) => e.id === parseInt(formData.equipmentId)
-    );
-    if (!equip) return 0;
-
-    const start = new Date(formData.startDate);
-    const end = new Date(formData.endDate);
-    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-
-    return days > 0 ? days * equip.dailyRate * formData.quantity : 0;
-  };
-
+  // Checkout
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
 
-    if (!formData.equipmentId || !formData.startDate || !formData.endDate) {
-      setError("Please fill in all required fields");
-      return;
-    }
-
-    const start = new Date(formData.startDate);
-    const end = new Date(formData.endDate);
-
-    if (end <= start) {
-      setError("End date must be after start date");
+    if (!formData.equipmentId || !formData.endDate) {
+      setError("Please complete all required fields");
       return;
     }
 
     try {
       const token = localStorage.getItem("token");
-      await axios.post("/rentals", formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+
+      const payload = {
+        equipment_id: parseInt(formData.equipmentId),
+        return_date: formData.endDate,
+      };
+
+      await axios.post("/rentals/checkout", payload, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      setSuccess("Rental created successfully");
+
+      setSuccess("Rental created successfully!");
       resetForm();
       fetchRentals();
       fetchEquipment();
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to create rental");
+      setError(err.response?.data?.message || "Failed to checkout equipment");
     }
   };
 
+  // Return
   const handleReturnEquipment = async (rentalId) => {
     try {
       const token = localStorage.getItem("token");
-      await axios.put(
-        `/rentals/${rentalId}/return`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+
+      await axios.post(
+        "/rentals/return",
+        { rental_id: rentalId },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-      setSuccess("Equipment returned successfully");
+
+      setSuccess("Equipment returned!");
       fetchRentals();
       fetchEquipment();
     } catch (err) {
-      setError("Failed to return equipment");
+      setError(err.response?.data?.message || "Failed to return equipment");
     }
   };
 
   const resetForm = () => {
     setFormData({
       equipmentId: "",
-      customerName: "",
-      customerEmail: "",
-      customerPhone: "",
-      startDate: "",
       endDate: "",
-      quantity: 1,
     });
     setShowForm(false);
   };
 
   const getStatusBadge = (status) => {
-    const statusClass = `status-${status.toLowerCase()}`;
+    const statusClass = `status-${status?.toLowerCase()}`;
     return <span className={`status-badge ${statusClass}`}>{status}</span>;
   };
 
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
+  if (loading) return <div className="loading">Loading...</div>;
 
   return (
     <div className="rentals-container">
@@ -168,16 +137,24 @@ export default function Rentals() {
         <div className="navbar-content">
           <h1>Equipment Rental System</h1>
           <div className="navbar-right">
-            <Link to="/dashboard" className="btn btn-secondary">
-              Dashboard
-            </Link>
+            <span className="user-info">Welcome, {user?.name}</span>
+            <button onClick={handleLogout} className="btn btn-logout">
+              Logout
+            </button>
           </div>
         </div>
       </header>
 
+      <nav className="sidebar">
+        <Link to="/dashboard" className="nav-link">Dashboard</Link>
+        <Link to="/equipment" className="nav-link">Equipment</Link>
+        <Link to="/rentals" className="nav-link active">Rentals</Link>
+        <Link to="/reports" className="nav-link">Reports</Link>
+      </nav>
+
       <main className="rentals-main">
         <div className="page-header">
-          <h2>Rental Checkouts</h2>
+          <h2>Manage Rentals</h2>
           <button
             onClick={() => {
               resetForm();
@@ -195,158 +172,105 @@ export default function Rentals() {
         {showForm && (
           <div className="form-container">
             <h3>Create New Rental</h3>
+
             <form onSubmit={handleSubmit}>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Equipment *</label>
-                  <select
-                    name="equipmentId"
-                    value={formData.equipmentId}
-                    onChange={handleInputChange}
-                    required
-                  >
-                    <option value="">Select Equipment</option>
-                    {equipment.map((eq) => (
-                      <option key={eq.id} value={eq.id}>
-                        {eq.name} - ${eq.dailyRate}/day ({eq.available}{" "}
-                        available)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Quantity *</label>
-                  <input
-                    type="number"
-                    name="quantity"
-                    value={formData.quantity}
-                    onChange={handleInputChange}
-                    required
-                    min="1"
-                  />
-                </div>
-              </div>
+  <div className="form-row">
+    <div className="form-group">
+      <label>Equipment *</label>
+      <select
+        name="equipmentId"
+        value={formData.equipmentId}
+        onChange={handleInputChange}
+        required
+      >
+        <option value="">Select Equipment</option>
+        {equipment.map((eq) => (
+          <option key={eq.id} value={eq.id} data-available={eq.available}>
+            {eq.name} — {eq.available} available
+          </option>
+        ))}
+      </select>
+    </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Customer Name *</label>
-                  <input
-                    type="text"
-                    name="customerName"
-                    value={formData.customerName}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="Full name"
-                  />
-                </div>
-              </div>
+    <div className="form-group">
+      <label>Quantity *</label>
+      <input
+        type="number"
+        name="quantity"
+        min="1"
+        max={equipment.find(eq => eq.id == formData.equipmentId)?.available || 1}
+        value={formData.quantity || 1}
+        onChange={handleInputChange}
+        required
+      />
+    </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Email *</label>
-                  <input
-                    type="email"
-                    name="customerEmail"
-                    value={formData.customerEmail}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="email@example.com"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Phone *</label>
-                  <input
-                    type="tel"
-                    name="customerPhone"
-                    value={formData.customerPhone}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="(123) 456-7890"
-                  />
-                </div>
-              </div>
+    <div className="form-group">
+      <label>Expected Return Date *</label>
+      <input
+        type="date"
+        name="endDate"
+        value={formData.endDate}
+        onChange={handleInputChange}
+        required
+      />
+    </div>
+  </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Start Date *</label>
-                  <input
-                    type="date"
-                    name="startDate"
-                    value={formData.startDate}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>End Date *</label>
-                  <input
-                    type="date"
-                    name="endDate"
-                    value={formData.endDate}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </div>
-              </div>
+  <button type="submit" className="btn btn-primary">Checkout</button>
+</form>
 
-              {formData.equipmentId &&
-                formData.startDate &&
-                formData.endDate && (
-                  <div className="rental-summary">
-                    <p>
-                      <strong>Estimated Total:</strong> $
-                      {calculateTotal().toFixed(2)}
-                    </p>
-                  </div>
-                )}
-
-              <button type="submit" className="btn btn-primary">
-                Create Rental
-              </button>
-            </form>
           </div>
         )}
 
+        {/* Rentals Table */}
         <div className="rentals-table-container">
           <table className="rentals-table">
             <thead>
               <tr>
-                <th>Rental ID</th>
+                <th>ID</th>
                 <th>Equipment</th>
                 <th>Customer</th>
-                <th>Start Date</th>
-                <th>End Date</th>
-                <th>Total Cost</th>
+                <th>Checkout</th>
+                <th>Return</th>
+                <th>Total</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th>Action</th>
               </tr>
             </thead>
+
             <tbody>
               {rentals.length === 0 ? (
                 <tr>
                   <td colSpan="8" className="no-data">
-                    No rentals found. Create one to get started.
+                    No rentals found.
                   </td>
                 </tr>
               ) : (
-                rentals.map((rental) => (
-                  <tr key={rental.id}>
-                    <td>{rental.id}</td>
-                    <td>{rental.equipmentName}</td>
+                rentals.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.id}</td>
+                    <td>{r.equipment_name}</td>
+
                     <td>
                       <div className="customer-info">
-                        <div>{rental.customerName}</div>
-                        <small>{rental.customerEmail}</small>
+                        {r.customer_name}
+                        <br />
+                        <small>{r.customer_email}</small>
                       </div>
                     </td>
-                    <td>{new Date(rental.startDate).toLocaleDateString()}</td>
-                    <td>{new Date(rental.endDate).toLocaleDateString()}</td>
-                    <td>${rental.totalCost.toFixed(2)}</td>
-                    <td>{getStatusBadge(rental.status)}</td>
-                    <td className="actions">
-                      {rental.status === "active" && (
+
+                    <td>{new Date(r.checkout_date).toLocaleDateString()}</td>
+                    <td>{new Date(r.return_date).toLocaleDateString()}</td>
+
+                    <td>${Number(r.total_cost || 0).toFixed(2)}</td>
+
+                    <td>{getStatusBadge(r.status)}</td>
+
+                    <td>
+                      {r.status === "active" && (
                         <button
-                          onClick={() => handleReturnEquipment(rental.id)}
+                          onClick={() => handleReturnEquipment(r.id)}
                           className="btn btn-sm btn-success"
                         >
                           Return
