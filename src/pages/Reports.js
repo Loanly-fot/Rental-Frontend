@@ -70,14 +70,57 @@ export default function Reports() {
   //   alert("PDF download coming soon. Use CSV for now.");
   // };
 
-  const downloadCSV = () => {
-  const token = localStorage.getItem("token");
-  window.open(`${process.env.REACT_APP_API_URL}/reports/${reportType}/csv`, "_blank");
+  const downloadCSV = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    const res = await axios.get(`/reports/${reportType}/csv`, {
+      headers: { Authorization: `Bearer ${token}` },
+      responseType: "arraybuffer",
+    });
+
+    // Prepend UTF-8 BOM so Excel recognizes UTF-8 reliably
+    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const csvArray = new Uint8Array(res.data);
+    const combined = new Uint8Array(bom.length + csvArray.length);
+    combined.set(bom, 0);
+    combined.set(csvArray, bom.length);
+
+    const blob = new Blob([combined], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${reportType}_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("Download CSV failed", err.response || err);
+    alert("Failed to download CSV");
+  }
 };
 
-const downloadPDF = () => {
-  const token = localStorage.getItem("token");
-  window.open(`${process.env.REACT_APP_API_URL}/reports/${reportType}/pdf`, "_blank");
+const downloadPDF = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    const res = await axios.get(`/reports/${reportType}/pdf`, {
+      headers: { Authorization: `Bearer ${token}` },
+      responseType: "arraybuffer", // critical for binary
+    });
+
+    const blob = new Blob([res.data], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${reportType}_${new Date().toISOString().split("T")[0]}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("Download PDF failed", err.response || err);
+    alert("Failed to download PDF");
+  }
 };
 
 
