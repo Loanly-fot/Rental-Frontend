@@ -37,7 +37,7 @@ export default function Rentals() {
   const fetchRentals = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.get("/api/rentals", {
+      const response = await axios.get("/rentals", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setRentals(response.data.rentals || []);
@@ -257,6 +257,7 @@ export default function Rentals() {
                         {r.customer_name}
                         <br />
                         <small>{r.customer_email}</small>
+                        <small>{r.customer_phone}</small>
                       </div>
                     </td>
 

@@ -158,7 +158,13 @@
 }
 
 .report-table-container {
-  margin-bottom: 30px;
+  /* margin-bottom: 30px; */
+      background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+    overflow: scroll;
+  
 }
 
 .report-table-container h3 {
